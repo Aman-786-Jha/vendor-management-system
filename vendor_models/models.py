@@ -62,16 +62,17 @@ class Vendor(CommonTimePicker):
         return f'{self.user.name}_{self.user.email}'
 
     def generate_vendor_code(self):
-        vendor_id = str(self.id)
+        vendor_id = str(self.id) if self.id else '0'
         random_component = ''.join(random.choices(string.digits + string.ascii_letters, k=4))
         vendor_code = f"V_{vendor_id}_{random_component}"
         return vendor_code
 
     def save(self, *args, **kwargs):
         if not self.vendor_code:
-            super().save(*args, **kwargs)  # Save the instance to get an ID
             self.vendor_code = self.generate_vendor_code()
         super().save(*args, **kwargs)  # Save again to update the vendor_code
+
+
 
 
 
@@ -94,17 +95,16 @@ class Buyer(CommonTimePicker):
     last_order_date = models.DateField(blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
 
-
     def __str__(self):
         return f'{self.user.name}_{self.user.email}'
-    
+
     def increment_order_count(self):
         self.total_orders += 1
         self.last_order_date = timezone.now().date()
         self.save()
 
     def generate_buyer_code(self):
-        buyer_id = str(self.id)
+        buyer_id = str(self.id) if self.id else '0'
         random_component = ''.join(random.choices(string.digits + string.ascii_letters, k=4))
         buyer_code = f"B_{buyer_id}_{random_component}"
         return buyer_code
@@ -114,6 +114,7 @@ class Buyer(CommonTimePicker):
             super().save(*args, **kwargs)  # Save the instance to get an ID
             self.buyer_code = self.generate_buyer_code()
         super().save(*args, **kwargs)  # Save again to update the buyer_code
+
 
 
 class Items(CommonTimePicker):
@@ -168,10 +169,3 @@ class HistoricalPerformanceVendor(CommonTimePicker):
 
     def __str__(self):
         return f"vendor {self.vendor.user.name} fulfillment rate {self.fulfillment_rate}"
-
-
-    
-
-
-
-
