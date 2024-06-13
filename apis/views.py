@@ -9,7 +9,13 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate
 from .serializers import *
 from vendor_models.models import *
-from vendor_models.models import *
+from rest_framework.pagination import PageNumberPagination
+
+# Pagination class for limiting the number of results per page
+class CustomPagination(PageNumberPagination):
+    page_size = 4
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 # Manual parameter for Authorization header
 authorization_param = openapi.Parameter(
@@ -19,6 +25,55 @@ authorization_param = openapi.Parameter(
     required=True,
     default='Bearer ',
     description='Token',
+)
+
+name_param_buyer = openapi.Parameter(
+    'name',
+    openapi.IN_QUERY,
+    description="Name of the Buyer",
+    type=openapi.TYPE_STRING
+)
+
+name_param_vendor = openapi.Parameter(
+    'name',
+    openapi.IN_QUERY,
+    description="Name of the Vendor",
+    type=openapi.TYPE_STRING
+)
+
+email_param = openapi.Parameter(
+    'email',
+    openapi.IN_QUERY,
+    description="Email address",
+    type=openapi.TYPE_STRING
+)
+
+contact_details_param = openapi.Parameter(
+    'contact_details',
+    openapi.IN_QUERY,
+    description="Contact details",
+    type=openapi.TYPE_STRING
+)
+
+address_param = openapi.Parameter(
+    'address',
+    openapi.IN_QUERY,
+    description="Address",
+    type=openapi.TYPE_STRING
+)
+
+page_param = openapi.Parameter(
+    'page',
+    openapi.IN_QUERY,
+    description="Page number",
+    type=openapi.TYPE_INTEGER
+)
+
+page_size_param = openapi.Parameter(
+    'page_size',
+    openapi.IN_QUERY,
+    description="Number of items per page",
+    type=openapi.TYPE_INTEGER
 )
 
 class LoginView(APIView):
@@ -110,30 +165,130 @@ class VendorCreateView(APIView):
 
 class VendorListView(APIView):
     permission_classes = [IsAuthenticated]
+    pagination_class = CustomPagination
 
     @swagger_auto_schema(
-        manual_parameters=[authorization_param],
+        manual_parameters=[
+            authorization_param,
+            name_param_vendor,
+            email_param,
+            contact_details_param,
+            address_param,
+            page_param,
+            page_size_param
+        ],
         responses={
-            200: openapi.Response(description='OK', schema=VendorSerializer(many=True)),
+            200: openapi.Response(
+                description='OK',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_OBJECT))
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description='Bad request.',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT)
+                    }
+                )
+            ),
+            401: openapi.Response(
+                description='Unauthorized.',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description='Vendor not found.',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT)
+                    }
+                )
+            ),
+            500: openapi.Response(
+                description='Internal Server Error',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'error': openapi.Schema(type=openapi.TYPE_STRING)
+                            }
+                        )
+                    }
+                )
+            )
         }
     )
     def get(self, request):
         try:
-            vendors = Vendor.objects.all()
-            serializer = VendorSerializer(vendors, many=True)
-            return Response(
+            # Retrieve query parameters
+            name = request.GET.get('name')
+            email = request.GET.get('email')
+            contact_details = request.GET.get('contact_details')
+            address = request.GET.get('address')
+
+            # Filter vendors based on query parameters
+            filters = {}
+            if name:
+                filters['user__name__icontains'] = name
+            if email:
+                filters['user__email__icontains'] = email
+            if contact_details:
+                filters['user__contact_details__icontains'] = contact_details
+            if address:
+                filters['user__address__icontains'] = address
+
+            vendors = Vendor.objects.filter(**filters) if filters else Vendor.objects.all()
+
+            # Apply pagination
+            paginator = CustomPagination()
+            page = paginator.paginate_queryset(vendors, request)
+
+            # Check if there are any vendors
+            if not page:
+                return paginator.get_paginated_response(
+                    {
+                        'responseCode': status.HTTP_200_OK,
+                        'responseMessage': 'No data found',
+                        'responseData': [],
+                    }
+                )
+
+            serializer = VendorSerializer(page, many=True)
+
+            return paginator.get_paginated_response(
                 {
                     'responseCode': status.HTTP_200_OK,
                     'responseMessage': 'Vendors retrieved successfully.',
                     'responseData': serializer.data,
-                },
-                status=status.HTTP_200_OK
+                }
             )
         except Exception as e:
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -279,10 +434,11 @@ class BuyerCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            print("BuyerCreate Error -->", e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -291,31 +447,130 @@ class BuyerCreateView(APIView):
 # Buyer Views
 class BuyerListView(APIView):
     permission_classes = [IsAuthenticated]
+    pagination_class = CustomPagination
 
     @swagger_auto_schema(
-        manual_parameters=[authorization_param],
+        manual_parameters=[
+            authorization_param,
+            name_param_buyer,
+            email_param,
+            contact_details_param,
+            address_param,
+            page_param,
+            page_size_param
+        ],
         responses={
-            200: openapi.Response(description='OK', schema=BuyerSerializer(many=True)),
-            500: openapi.Response(description='Internal Server Error', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            200: openapi.Response(
+                description='OK',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_OBJECT))
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description='Bad request.',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT)
+                    }
+                )
+            ),
+            401: openapi.Response(
+                description='Unauthorized.',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT)
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description='Vendor not found.',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT)
+                    }
+                )
+            ),
+            500: openapi.Response(
+                description='Internal Server Error',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'error': openapi.Schema(type=openapi.TYPE_STRING)
+                            }
+                        )
+                    }
+                )
+            )
         }
     )
     def get(self, request):
         try:
-            buyers = Buyer.objects.all()
-            serializer = BuyerSerializer(buyers, many=True)
-            return Response(
+            # Retrieve query parameters
+            name = request.GET.get('name')
+            email = request.GET.get('email')
+            contact_details = request.GET.get('contact_details')
+            address = request.GET.get('address')
+
+            # Filter buyers based on query parameters
+            filters = {}
+            if name:
+                filters['user__name__icontains'] = name
+            if email:
+                filters['user__email__icontains'] = email
+            if contact_details:
+                filters['user__contact_details__icontains'] = contact_details
+            if address:
+                filters['user__address__icontains'] = address
+
+            buyers = Buyer.objects.filter(**filters) if filters else Buyer.objects.all()
+
+            # Apply pagination
+            paginator = CustomPagination()
+            page = paginator.paginate_queryset(buyers, request)
+
+            # Check if there are any buyers
+            if not page:
+                return paginator.get_paginated_response(
+                    {
+                        'responseCode': status.HTTP_200_OK,
+                        'responseMessage': 'No data found',
+                        'responseData': [],
+                    }
+                )
+
+            serializer = BuyerSerializer(page, many=True)
+
+            return paginator.get_paginated_response(
                 {
                     'responseCode': status.HTTP_200_OK,
                     'responseMessage': 'Buyers retrieved successfully.',
                     'responseData': serializer.data,
-                },
-                status=status.HTTP_200_OK
+                }
             )
         except Exception as e:
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

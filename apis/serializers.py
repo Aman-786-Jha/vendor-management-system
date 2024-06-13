@@ -2,6 +2,8 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from vendor_models.models import Vendor, VendorManagementUser
+from django.contrib.auth import get_user_model
+User = get_user_model()
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -21,27 +23,6 @@ class LoginSerializer(serializers.Serializer):
         attrs['user'] = user
         return attrs
 
-# class VendorSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Vendor
-#         fields = ['user', 'vendor_code', 'on_time_delivery_date', 'quality_rating_avg', 'average_response_time', 'fulfillment_rate']
-
-# class VendorManagementUserSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = VendorManagementUser
-#         fields = ['user_type', 'name', 'email', 'password', 'address', 'contact_details']
-#         extra_kwargs = {'password': {'write_only': True}}
-
-#     def create(self, validated_data):
-#         user = VendorManagementUser.objects.create_user(
-#             user_type=validated_data['user_type'],
-#             name=validated_data['name'],
-#             email=validated_data['email'],
-#             password=validated_data['password'],
-#             address=validated_data['address'],
-#             contact_details=validated_data['contact_details']
-#         )
-#         return user
 
 
 
@@ -49,10 +30,87 @@ from rest_framework import serializers
 from vendor_models.models import VendorManagementUser
 
 class VendorManagementUserSerializer(serializers.ModelSerializer):
+
+    email = serializers.EmailField(
+        required=True,
+        allow_blank=False,
+        error_messages={
+            'required': 'Email is required.',
+            'invalid': 'Enter a valid email address.',
+            'blank': 'Email cannot be blank',
+        }
+    )
+
+    password = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        error_messages={
+            'required': 'Password is required.',
+            'min_length': 'Password must be at least 8 characters long.',
+        },
+        write_only=True,
+        min_length=8  # Minimum length validation
+    )
+
+    confirm_password = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        error_messages={
+            'required': 'Confirm Password is required.',
+        },
+        write_only=True
+    )
+
+    name = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        error_messages={
+            'required': 'Name is required.',
+            'blank': 'Name cannot be blank',
+        }
+    )
+    address = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        error_messages={
+            'required': 'Address is required.',
+            'blank': 'Address cannot be blank',
+        }
+    )
+    contact_details = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        error_messages={
+            'required': 'Contact Details are required.',
+            'blank': 'Contact Details cannot be blank',
+        }
+    )
+        
     class Meta:
-        model = VendorManagementUser
-        fields = ['user_type', 'name', 'email', 'password', 'address', 'contact_details']
-        extra_kwargs = {'password': {'write_only': True}}
+        model = User
+        fields = ['user_type','name', 'email', 'contact_details','address' ,'password', 'confirm_password']
+        extra_kwargs = {
+            'user_type': {'required': True, 'error_messages': {'required': 'User type is required.'}},
+            'name': {'required': True, 'error_messages': {'required': 'Name is required.'}},
+            'email': {'required': True, 'error_messages': {'required': 'Email is required.'}},
+            'password': {'write_only': True, 'required': True, 'error_messages': {'required': 'Password is required.'}},
+            'address': {'required': True, 'error_messages': {'required': 'Address is required.'}},
+            'contact_details': {'required': True, 'error_messages': {'required': 'Contact details are required.'}},
+        }
+
+    def validate(self, data):
+        email = data.get('email')
+        password = data.get('password')
+        confirm_password = data.get('confirm_password')
+
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError("This email has already been registered.")
+
+        if password != confirm_password:
+            raise serializers.ValidationError("Password does not matches.")
+
+        return data
+
 
     def create(self, validated_data):
         user = VendorManagementUser.objects.create_user(
@@ -71,12 +129,13 @@ class VendorManagementUserSerializer(serializers.ModelSerializer):
         instance.email = validated_data.get('email', instance.email)
         instance.address = validated_data.get('address', instance.address)
         instance.contact_details = validated_data.get('contact_details', instance.contact_details)
-        
+
         if 'password' in validated_data:
             instance.set_password(validated_data['password'])
 
         instance.save()
         return instance
+
 
 
 from rest_framework import serializers
@@ -184,3 +243,10 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
         
         instance.save()
         return instance
+
+
+
+
+
+
+
