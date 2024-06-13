@@ -1211,11 +1211,12 @@ class PurchaseOrderCreateView(APIView):
         responses={
             201: openapi.Response(description='Created', schema=PurchaseOrderSerializer),
             400: openapi.Response(description='Bad Request', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            500: openapi.Response(description='Internal Server Error', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
         }
     )
     def post(self, request):
         try:
-            serializer = PurchaseOrderSerializer(data=request.data)
+            serializer = PurchaseOrderSerializer(data=request.data, context={'request': request})
             if serializer.is_valid():
                 purchase_order = serializer.save()
                 return Response(
@@ -1242,7 +1243,6 @@ class PurchaseOrderCreateView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
 class PurchaseOrderListView(APIView):
     permission_classes = [IsAuthenticated]
 

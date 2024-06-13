@@ -226,31 +226,52 @@ class VendorSerializer(serializers.ModelSerializer):
 
 
 
-
 from rest_framework import serializers
-from vendor_models.models import PurchaseOrder, Buyer, Vendor, Items
+from vendor_models.models import PurchaseOrder, Vendor, Buyer, Items
+from django.core.exceptions import ObjectDoesNotExist
 
 class PurchaseOrderSerializer(serializers.ModelSerializer):
-    vendor = serializers.PrimaryKeyRelatedField(queryset=Vendor.objects.all())
-    buyer = serializers.PrimaryKeyRelatedField(queryset=Buyer.objects.all())
+    vendor_code = serializers.CharField(write_only=True, required=True)
+    buyer = serializers.PrimaryKeyRelatedField(queryset=Buyer.objects.all(), required=False)
     items = serializers.PrimaryKeyRelatedField(queryset=Items.objects.all())
+    vendor = serializers.PrimaryKeyRelatedField(queryset=Vendor.objects.all(), required=False)
 
     class Meta:
         model = PurchaseOrder
         fields = [
             'po_number', 'vendor', 'buyer', 'order_date', 'delivery_date', 
             'items', 'quantity', 'status', 'quality_rating', 
-            'issue_date', 'acknowledgment_date'
+            'issue_date', 'acknowledgment_date', 'vendor_code'
         ]
         read_only_fields = ['po_number', 'order_date', 'issue_date']
 
+    def validate(self, data):
+        vendor_code = data.get('vendor_code')
+        
+        try:
+            vendor = Vendor.objects.get(vendor_code=vendor_code)
+        except Vendor.DoesNotExist:
+            raise serializers.ValidationError({'vendor_code': 'Invalid vendor code.'})
+        
+        data['vendor'] = vendor
+        
+        try:
+            # Attempt to retrieve the buyer associated with the logged-in user
+            buyer = self.context['request'].user.buyer_profile
+        except ObjectDoesNotExist:
+            raise serializers.ValidationError('Buyer profile does not exist for the logged-in user.')
+        
+        data['buyer'] = buyer
+        
+        return data
+
     def create(self, validated_data):
-        # Handle the creation of a new purchase order
+        validated_data.pop('vendor_code')
         purchase_order = PurchaseOrder.objects.create(**validated_data)
         return purchase_order
 
     def update(self, instance, validated_data):
-        # Update the fields of the purchase order
+        validated_data.pop('vendor_code', None)
         instance.vendor = validated_data.get('vendor', instance.vendor)
         instance.buyer = validated_data.get('buyer', instance.buyer)
         instance.delivery_date = validated_data.get('delivery_date', instance.delivery_date)
@@ -262,10 +283,4 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
         
         instance.save()
         return instance
-
-
-
-
-
-
 
