@@ -170,6 +170,24 @@ class BuyerSerializer(serializers.ModelSerializer):
         return instance
 
 
+class VendorManagementUserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = VendorManagementUser
+        fields = ['name', 'password', 'address', 'contact_details']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Set all fields to required
+        for field in self.fields:
+            self.fields[field].required = True
+
+    def validate(self, data):
+        # Add custom validation logic if needed
+        if 'password' in data and len(data['password']) < 8:
+            raise serializers.ValidationError("Password must be at least 8 characters long.")
+        return data
+
 
 
 
@@ -178,33 +196,34 @@ from rest_framework import serializers
 from vendor_models.models import Vendor
 
 class VendorSerializer(serializers.ModelSerializer):
-    user = VendorManagementUserSerializer()
+    user = VendorManagementUserUpdateSerializer()
 
     class Meta:
         model = Vendor
-        fields = ['user', 'vendor_code', 'on_time_delivery_date', 'quality_rating_avg', 'average_response_time', 'fulfillment_rate']
-
-    def create(self, validated_data):
-        user_data = validated_data.pop('user')
-        user = VendorManagementUserSerializer.create(VendorManagementUserSerializer(), validated_data=user_data)
-        vendor, created = Vendor.objects.update_or_create(user=user, **validated_data)
-        return vendor
+        fields = ['user', 'on_time_delivery_date', 'quality_rating_avg', 'average_response_time', 'fulfillment_rate']
 
     def update(self, instance, validated_data):
-        user_data = validated_data.pop('user')
-        user = instance.user
-
+        user_data = validated_data.pop('user', None)
+        
+        # Update fields on Vendor model instance
         instance.on_time_delivery_date = validated_data.get('on_time_delivery_date', instance.on_time_delivery_date)
         instance.quality_rating_avg = validated_data.get('quality_rating_avg', instance.quality_rating_avg)
         instance.average_response_time = validated_data.get('average_response_time', instance.average_response_time)
         instance.fulfillment_rate = validated_data.get('fulfillment_rate', instance.fulfillment_rate)
-
-        user_serializer = VendorManagementUserSerializer(instance=user, data=user_data, partial=True)
-        if user_serializer.is_valid():
-            user_serializer.save()
-
+        
+        # Handle nested serializer (VendorManagementUserUpdateSerializer)
+        if user_data:
+            user_instance = instance.user
+            user_serializer = VendorManagementUserUpdateSerializer(user_instance, data=user_data, partial=True)
+            if user_serializer.is_valid():
+                user_serializer.save()
+            else:
+                raise serializers.ValidationError(user_serializer.errors)
+        
+        # Save updated instance
         instance.save()
         return instance
+
 
 
 

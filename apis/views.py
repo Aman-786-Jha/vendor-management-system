@@ -10,6 +10,10 @@ from django.contrib.auth import authenticate
 from .serializers import *
 from vendor_models.models import *
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import ValidationError
+import re 
+from django.contrib.auth import get_user_model
+User = get_user_model()
 
 # Pagination class for limiting the number of results per page
 class CustomPagination(PageNumberPagination):
@@ -74,6 +78,24 @@ page_size_param = openapi.Parameter(
     openapi.IN_QUERY,
     description="Number of items per page",
     type=openapi.TYPE_INTEGER
+)
+
+
+buyer_code_param = openapi.Parameter(
+    'buyer_code',
+    openapi.IN_PATH,
+    description="Buyer code",
+    type=openapi.TYPE_STRING,
+    required=True
+)
+
+
+vendor_code_param = openapi.Parameter(
+    'vendor_code',
+    openapi.IN_PATH,
+    description="Vendor code",
+    type=openapi.TYPE_STRING,
+    required=True
 )
 
 class LoginView(APIView):
@@ -298,15 +320,70 @@ class VendorDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
-        manual_parameters=[authorization_param],
+        manual_parameters=[authorization_param, vendor_code_param],
         responses={
-            200: openapi.Response(description='OK', schema=VendorSerializer),
-            404: openapi.Response(description='Not Found', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            200: openapi.Response(
+                description='OK',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT),
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description='Not Found',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT),
+                    }
+                )
+            ),
+            500: openapi.Response(
+                description='Internal Server Error',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'error': openapi.Schema(type=openapi.TYPE_STRING)
+                            }
+                        )
+                    }
+                )
+            )
         }
     )
-    def get(self, request, vendor_id):
+    def get(self, request, vendor_code):
         try:
-            vendor = get_object_or_404(Vendor, id=vendor_id)
+            # Validate vendor_code format
+            if not isinstance(vendor_code, str) or not re.match(r'^V_\d+_[a-zA-Z0-9]{4}$', vendor_code):
+                raise ValidationError({
+                    'vendor_code': 'Invalid vendor code format. '
+                                 'It should start with "V_" '
+                                 'and follow the pattern "V_<id>_<4 random characters>".'
+                })
+
+            # Check if vendor exists by vendor_code
+            vendor = Vendor.objects.filter(vendor_code=vendor_code).first()
+            if not vendor:
+                return Response(
+                    {
+                        'responseCode': status.HTTP_404_NOT_FOUND,
+                        'responseMessage': 'Vendor not found.',
+                        'responseData': [],
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
             serializer = VendorSerializer(vendor)
             return Response(
                 {
@@ -316,32 +393,188 @@ class VendorDetailView(APIView):
                 },
                 status=status.HTTP_200_OK
             )
+        except ValidationError as ve:
+            return Response(
+                {
+                    'responseCode': status.HTTP_400_BAD_REQUEST,
+                    'responseMessage': 'Invalid input',
+                    'responseData': ve.detail,
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-class VendorUpdateView(APIView):
+# class VendorUpdateView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     @swagger_auto_schema(
+#         manual_parameters=[authorization_param, vendor_code_param],
+#         request_body=VendorSerializer,
+#         responses={
+#             200: openapi.Response(
+#                 description='OK',
+#                 schema=VendorSerializer,
+#             ),
+#             400: openapi.Response(
+#                 description='Bad Request',
+#                 schema=openapi.Schema(
+#                     type=openapi.TYPE_OBJECT,
+#                     properties={
+#                         'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+#                         'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+#                     }
+#                 )
+#             ),
+#             404: openapi.Response(
+#                 description='Not Found',
+#                 schema=openapi.Schema(
+#                     type=openapi.TYPE_OBJECT,
+#                     properties={
+#                         'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+#                         'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+#                         'responseData': openapi.Schema(type=openapi.TYPE_OBJECT),
+#                     }
+#                 )
+#             ),
+#             500: openapi.Response(
+#                 description='Internal Server Error',
+#                 schema=openapi.Schema(
+#                     type=openapi.TYPE_OBJECT,
+#                     properties={
+#                         'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+#                         'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+#                         'responseData': openapi.Schema(
+#                             type=openapi.TYPE_OBJECT,
+#                             properties={
+#                                 'error': openapi.Schema(type=openapi.TYPE_STRING)
+#                             }
+#                         )
+#                     }
+#                 )
+#             )
+#         }
+#     )
+#     def put(self, request, vendor_code):
+#         try:
+#             vendor = Vendor.objects.get(vendor_code=vendor_code)
+#             serializer = VendorSerializer(vendor, data=request.data, partial=True)
+#             if serializer.is_valid():
+#                 serializer.save()
+#                 return Response(
+#                     {
+#                         'responseCode': status.HTTP_200_OK,
+#                         'responseMessage': 'Vendor updated successfully.',
+#                         'responseData': serializer.data,
+#                     },
+#                     status=status.HTTP_200_OK
+#                 )
+#             return Response(
+#                 {
+#                     'responseCode': status.HTTP_400_BAD_REQUEST,
+#                     'responseMessage': serializer.errors,
+#                 },
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+#         except Vendor.DoesNotExist:
+#             return Response(
+#                 {
+#                     'responseCode': status.HTTP_404_NOT_FOUND,
+#                     'responseMessage': 'Vendor not found.',
+#                     'responseData': [],
+#                 },
+#                 status=status.HTTP_404_NOT_FOUND
+#             )
+#         except Exception as e:
+#             print(f'Error updating vendor: {e}')
+#             return Response(
+#                 {
+#                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
+#                     'responseMessage': 'Internal Server Error',
+#                     'responseData': {'error': str(e)},
+#                 },
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
+
+
+class  VendorUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
-        manual_parameters=[authorization_param],
-        request_body=VendorSerializer,
+        manual_parameters=[authorization_param,vendor_code_param ],
+        request_body=VendorManagementUserUpdateSerializer,
         responses={
-            200: openapi.Response(description='OK', schema=VendorSerializer),
-            400: openapi.Response(description='Bad Request', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
-            404: openapi.Response(description='Not Found', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            200: openapi.Response(description='OK', schema=VendorManagementUserUpdateSerializer),
+            400: openapi.Response(
+                description='Bad Request',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description='Not Found',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT),
+                    }
+                )
+            ),
+            500: openapi.Response(
+                description='Internal Server Error',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'error': openapi.Schema(type=openapi.TYPE_STRING)
+                            }
+                        )
+                    }
+                )
+            )
         }
     )
-    def put(self, request, vendor_id):
+    def put(self, request, vendor_code):
         try:
-            vendor = get_object_or_404(Vendor, id=vendor_id)
-            serializer = VendorSerializer(vendor, data=request.data, partial=True)
+            # Validate buyer_code format
+            if not isinstance(vendor_code, str) or not re.match(r'^V_\d+_[a-zA-Z0-9]{4}$', vendor_code):
+                raise ValidationError({
+                    'buyer_code': 'Invalid buyer code format. '
+                                 'It should start with "B_" '
+                                 'and follow the pattern "B_<id>_<4 random characters>".'
+                })
+
+            # Check if buyer exists by buyer_code
+            vendor = Vendor.objects.filter(vendor_code=vendor_code).first()
+            if not vendor:
+                return Response(
+                    {
+                        'responseCode': status.HTTP_404_NOT_FOUND,
+                        'responseMessage': 'Vendor not found.',
+                        'responseData': [],
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Update the user associated with the buyer
+            serializer = VendorManagementUserUpdateSerializer(vendor.user, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 return Response(
@@ -359,11 +592,20 @@ class VendorUpdateView(APIView):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
+        except ValidationError as ve:
+            return Response(
+                {
+                    'responseCode': status.HTTP_400_BAD_REQUEST,
+                    'responseMessage': 'Invalid input',
+                    'responseData': ve.detail,
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -373,28 +615,94 @@ class VendorDeleteView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
-        manual_parameters=[authorization_param],
+        manual_parameters=[authorization_param, vendor_code_param],
         responses={
-            204: openapi.Response(description='No Content'),
-            404: openapi.Response(description='Not Found', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            200: openapi.Response(
+                description='OK',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description='Not Found',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT),
+                    }
+                )
+            ),
+            500: openapi.Response(
+                description='Internal Server Error',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'error': openapi.Schema(type=openapi.TYPE_STRING)
+                            }
+                        )
+                    }
+                )
+            )
         }
     )
-    def delete(self, request, vendor_id):
+    def delete(self, request, vendor_code):
         try:
-            vendor = get_object_or_404(Vendor, id=vendor_id)
-            vendor.delete()
+            # Validate vendor_code format
+            if not isinstance(vendor_code, str) or not re.match(r'^V_\d+_[a-zA-Z0-9]{4}$', vendor_code):
+                raise ValidationError({
+                    'vendor_code': 'Invalid vendor code format. '
+                                 'It should start with "V_" '
+                                 'and follow the pattern "V_<id>_<4 random characters>".'
+                })
+
+            # Check if vendor exists by vendor_code
+            vendor = Vendor.objects.filter(vendor_code=vendor_code).first()
+            if not vendor:
+                return Response(
+                    {
+                        'responseCode': status.HTTP_404_NOT_FOUND,
+                        'responseMessage': 'Vendor not found.',
+                        'responseData': [],
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Delete the vendor
+            # vendor.delete()
+            vendor.user.delete()
+
             return Response(
                 {
-                    'responseCode': status.HTTP_204_NO_CONTENT,
+                    'responseCode': status.HTTP_200_OK,
                     'responseMessage': 'Vendor deleted successfully.',
                 },
-                status=status.HTTP_204_NO_CONTENT
+                status=status.HTTP_200_OK
+            )
+        except ValidationError as ve:
+            return Response(
+                {
+                    'responseCode': status.HTTP_400_BAD_REQUEST,
+                    'responseMessage': 'Invalid input',
+                    'responseData': ve.detail,
+                },
+                status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -580,20 +888,75 @@ class BuyerListView(APIView):
 
 
 
-# Buyer Views (continued)
+# Buyer Views
 class BuyerDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
-        manual_parameters=[authorization_param],
+        manual_parameters=[authorization_param, buyer_code_param],
         responses={
-            200: openapi.Response(description='OK', schema=BuyerSerializer),
-            404: openapi.Response(description='Not Found', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            200: openapi.Response(
+                description='OK',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT),
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description='Not Found',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT),
+                    }
+                )
+            ),
+            500: openapi.Response(
+                description='Internal Server Error',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'error': openapi.Schema(type=openapi.TYPE_STRING)
+                            }
+                        )
+                    }
+                )
+            )
         }
     )
-    def get(self, request, buyer_id):
+    def get(self, request, buyer_code):
         try:
-            buyer = get_object_or_404(Buyer, id=buyer_id)
+            # Validate buyer_code format
+            if not isinstance(buyer_code, str) or not re.match(r'^B_\d+_[a-zA-Z0-9]{4}$', buyer_code):
+                raise ValidationError({
+                    'buyer_code': 'Invalid buyer code format. '
+                                 'It should start with "B_" '
+                                 'and follow the pattern "B_<id>_<4 random characters>".'
+                })
+
+            # Check if buyer exists by buyer_code
+            buyer = Buyer.objects.filter(buyer_code=buyer_code).first()
+            if not buyer:
+                return Response(
+                    {
+                        'responseCode': status.HTTP_404_NOT_FOUND,
+                        'responseMessage': 'Buyer not found.',
+                        'responseData': [],
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
             serializer = BuyerSerializer(buyer)
             return Response(
                 {
@@ -603,11 +966,20 @@ class BuyerDetailView(APIView):
                 },
                 status=status.HTTP_200_OK
             )
+        except ValidationError as ve:
+            return Response(
+                {
+                    'responseCode': status.HTTP_400_BAD_REQUEST,
+                    'responseMessage': 'Invalid input',
+                    'responseData': ve.detail,
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -617,18 +989,73 @@ class BuyerUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
-        manual_parameters=[authorization_param],
-        request_body=VendorManagementUserSerializer,
+        manual_parameters=[authorization_param,buyer_code_param ],
+        request_body=VendorManagementUserUpdateSerializer,
         responses={
-            200: openapi.Response(description='OK', schema=VendorManagementUserSerializer),
-            400: openapi.Response(description='Bad Request', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
-            404: openapi.Response(description='Not Found', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            200: openapi.Response(description='OK', schema=VendorManagementUserUpdateSerializer),
+            400: openapi.Response(
+                description='Bad Request',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description='Not Found',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT),
+                    }
+                )
+            ),
+            500: openapi.Response(
+                description='Internal Server Error',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'error': openapi.Schema(type=openapi.TYPE_STRING)
+                            }
+                        )
+                    }
+                )
+            )
         }
     )
-    def put(self, request, buyer_id):
+    def put(self, request, buyer_code):
         try:
-            buyer = get_object_or_404(Buyer, id=buyer_id)
-            serializer = VendorManagementUserSerializer(buyer.user, data=request.data, partial=True)
+            # Validate buyer_code format
+            if not isinstance(buyer_code, str) or not re.match(r'^B_\d+_[a-zA-Z0-9]{4}$', buyer_code):
+                raise ValidationError({
+                    'buyer_code': 'Invalid buyer code format. '
+                                 'It should start with "B_" '
+                                 'and follow the pattern "B_<id>_<4 random characters>".'
+                })
+
+            # Check if buyer exists by buyer_code
+            buyer = Buyer.objects.filter(buyer_code=buyer_code).first()
+            if not buyer:
+                return Response(
+                    {
+                        'responseCode': status.HTTP_404_NOT_FOUND,
+                        'responseMessage': 'Buyer not found.',
+                        'responseData': [],
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Update the user associated with the buyer
+            serializer = VendorManagementUserUpdateSerializer(buyer.user, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 return Response(
@@ -646,11 +1073,20 @@ class BuyerUpdateView(APIView):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
+        except ValidationError as ve:
+            return Response(
+                {
+                    'responseCode': status.HTTP_400_BAD_REQUEST,
+                    'responseMessage': 'Invalid input',
+                    'responseData': ve.detail,
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -662,26 +1098,104 @@ class BuyerDeleteView(APIView):
     @swagger_auto_schema(
         manual_parameters=[authorization_param],
         responses={
-            204: openapi.Response(description='No Content'),
-            404: openapi.Response(description='Not Found', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            200: openapi.Response(
+                description='OK',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description='Bad Request',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            additional_properties=openapi.Schema(type=openapi.TYPE_STRING)
+                        ),
+                    }
+                )
+            ),
+            404: openapi.Response(
+                description='Not Found',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(type=openapi.TYPE_OBJECT),
+                    }
+                )
+            ),
+            500: openapi.Response(
+                description='Internal Server Error',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                        'responseData': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'error': openapi.Schema(type=openapi.TYPE_STRING)
+                            }
+                        )
+                    }
+                )
+            )
         }
     )
-    def delete(self, request, buyer_id):
+    def delete(self, request, buyer_code):
         try:
-            buyer = get_object_or_404(Buyer, id=buyer_id)
+            # Validate buyer_code format
+            if not re.match(r'^B_\d+_[a-zA-Z0-9]{4}$', buyer_code):
+                raise ValidationError({'buyer_code': 'Invalid buyer code format. It should start with "B_" and follow the pattern "B_<id>_<4 random characters>".'})
+
+            # Check if buyer exists by buyer_code
+            buyer = Buyer.objects.filter(buyer_code=buyer_code).first()
+            if not buyer:
+                return Response(
+                    {
+                        'responseCode': status.HTTP_404_NOT_FOUND,
+                        'responseMessage': 'Buyer not found.',
+                        'responseData': [],
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # buyer.delete()
+            
+            # Delete the user associated with the buyer
             buyer.user.delete()  # This will also delete the Buyer object due to cascading
+
             return Response(
                 {
-                    'responseCode': status.HTTP_204_NO_CONTENT,
+                    'responseCode': status.HTTP_200_OK,
                     'responseMessage': 'Buyer deleted successfully.',
                 },
-                status=status.HTTP_204_NO_CONTENT
+                status=status.HTTP_200_OK
+            )
+        except ValidationError as ve:
+            print('Input detail--------->', ve.detail)
+            return Response(
+                {
+                    'responseCode': status.HTTP_400_BAD_REQUEST,
+                    'responseMessage': 'Invalid input',
+                    'responseData': ve.detail,
+                },
+                status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
