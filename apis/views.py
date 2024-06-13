@@ -1528,3 +1528,94 @@ class PurchaseOrderDeleteView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
+
+class VendorPerformanceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: openapi.Response(description='OK', schema=VendorPerformanceSerializer),
+            404: openapi.Response(description='Not Found', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            500: openapi.Response(description='Internal Server Error', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+        }
+    )
+    def get(self, request, vendor_id):
+        try:
+            vendor = get_object_or_404(Vendor, id=vendor_id)
+            serializer = VendorPerformanceSerializer(vendor)
+            return Response(
+                {
+                    'responseCode': status.HTTP_200_OK,
+                    'responseMessage': 'Vendor performance metrics retrieved successfully.',
+                    'responseData': serializer.data,
+                },
+                status=status.HTTP_200_OK
+            )
+        except Vendor.DoesNotExist:
+            return Response(
+                {
+                    'responseCode': status.HTTP_404_NOT_FOUND,
+                    'responseMessage': 'Vendor not found.',
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {
+                    'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    'responseMessage': 'Internal Server Error',
+                    'responseData': {'error': str(e)},
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+
+
+
+class AcknowledgePurchaseOrderView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=AcknowledgePurchaseOrderSerializer,
+        responses={
+            200: openapi.Response(description='OK'),
+            404: openapi.Response(description='Not Found', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            500: openapi.Response(description='Internal Server Error', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+        }
+    )
+    def post(self, request, po_number):
+        try:
+            purchase_order = get_object_or_404(PurchaseOrder, po_number=po_number, vendor=request.user.vendor_profile)
+            purchase_order.acknowledgment_date = timezone.now()
+            purchase_order.status = 'acknowledged'
+            purchase_order.save()
+
+            return Response(
+                {
+                    'responseCode': status.HTTP_200_OK,
+                    'responseMessage': 'Purchase Order acknowledged successfully.',
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except PurchaseOrder.DoesNotExist:
+            return Response(
+                {
+                    'responseCode': status.HTTP_404_NOT_FOUND,
+                    'responseMessage': 'Purchase Order not found.',
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {
+                    'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    'responseMessage': 'Internal Server Error',
+                    'responseData': {'error': str(e)},
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+

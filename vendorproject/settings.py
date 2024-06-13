@@ -37,7 +37,8 @@ ALLOWED_HOSTS = []
 
 CUSTOM_APPS = [
     'vendor_models',
-    'apis'
+    # 'apis'
+    'apis.apps.ApisConfig'
 ]
 
 THIRD_PARTY_APPS = [

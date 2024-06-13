@@ -283,4 +283,23 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
         
         instance.save()
         return instance
+    
 
+
+
+class VendorPerformanceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vendor
+        fields = [
+            'on_time_delivery_date',
+            'quality_rating_avg',
+            'average_response_time',
+            'fulfillment_rate'
+        ]
+
+
+
+class AcknowledgePurchaseOrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PurchaseOrder
+        fields = ['po_number']

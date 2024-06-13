@@ -3,7 +3,7 @@ from .views import (
     VendorCreateView, VendorListView, VendorDetailView, VendorUpdateView, VendorDeleteView,
     BuyerCreateView, BuyerListView, BuyerDetailView, BuyerUpdateView, BuyerDeleteView,
     PurchaseOrderCreateView, PurchaseOrderListView, PurchaseOrderDetailView, PurchaseOrderUpdateView, PurchaseOrderDeleteView,
-    LoginView
+    LoginView, VendorPerformanceView, AcknowledgePurchaseOrderView
 )
 
 urlpatterns = [
@@ -30,6 +30,10 @@ urlpatterns = [
     path('purchase-orders/<str:po_number>/', PurchaseOrderDetailView.as_view(), name='purchase-order-detail'),
     path('purchase-orders/<str:po_number>/update/', PurchaseOrderUpdateView.as_view(), name='purchase-order-update'),
     path('purchase-orders/<str:po_number>/delete/', PurchaseOrderDeleteView.as_view(), name='purchase-order-delete'),
+
+
+    path('vendors/<int:vendor_id>/performance/', VendorPerformanceView.as_view(), name='vendor_performance'),
+    path('purchase_orders/<str:po_number>/acknowledge/', AcknowledgePurchaseOrderView.as_view(), name='purchase_order_acknowledge'),
 
 
     #-----------------------Login-----------------------------------------#
