@@ -12,6 +12,9 @@ from vendor_models.models import *
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import ValidationError
 import re 
+from django.shortcuts import get_object_or_404
+from django.http import Http404
+from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth import get_user_model
 User = get_user_model()
 
@@ -1215,9 +1218,15 @@ class PurchaseOrderCreateView(APIView):
         }
     )
     def post(self, request):
+        """
+        You cannot call `.save()` after accessing `serializer.data`.If you need to access data before committing to the database then inspect 'serializer.validated_data' instead. 
+        """
         try:
             serializer = PurchaseOrderSerializer(data=request.data, context={'request': request})
+            print('user----->',request.user.name)
             if serializer.is_valid():
+                # print('serializer data------>', serializer.data)
+                print('serialize data------->',serializer.validated_data)
                 purchase_order = serializer.save()
                 return Response(
                     {
@@ -1227,6 +1236,7 @@ class PurchaseOrderCreateView(APIView):
                     },
                     status=status.HTTP_201_CREATED
                 )
+            print('serializer data------>>>>>', serializer.data)
             return Response(
                 {
                     'responseCode': status.HTTP_400_BAD_REQUEST,
@@ -1245,25 +1255,79 @@ class PurchaseOrderCreateView(APIView):
             )
 class PurchaseOrderListView(APIView):
     permission_classes = [IsAuthenticated]
+    pagination_class = CustomPagination
 
     @swagger_auto_schema(
-        manual_parameters=[authorization_param],
+        manual_parameters=[authorization_param, name_param_vendor, page_param, page_size_param],
         responses={
             200: openapi.Response(description='OK', schema=PurchaseOrderSerializer(many=True)),
+            404: openapi.Response(description='Not Found', schema=openapi.Schema(type=openapi.TYPE_OBJECT, properties={
+                'responseCode': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'responseMessage': openapi.Schema(type=openapi.TYPE_STRING),
+                'responseData': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_OBJECT)),
+            })),
         }
     )
     def get(self, request):
         try:
-            purchase_orders = PurchaseOrder.objects.all()
-            serializer = PurchaseOrderSerializer(purchase_orders, many=True)
-            return Response(
-                {
-                    'responseCode': status.HTTP_200_OK,
-                    'responseMessage': 'Purchase Orders retrieved successfully.',
-                    'responseData': serializer.data,
-                },
-                status=status.HTTP_200_OK
-            )
+            user = request.user
+            vendor_name = request.query_params.get('name', None)
+            print('vendor_name-------->', vendor_name)
+
+            # Check if the user is a buyer or a vendor and filter accordingly
+            if hasattr(user, 'buyer_profile'):
+                purchase_orders = PurchaseOrder.objects.filter(buyer=user.buyer_profile)
+                if vendor_name:
+                    purchase_orders = purchase_orders.filter(vendor__user__name__icontains=vendor_name)
+            elif hasattr(user, 'vendor_profile'):
+                purchase_orders = PurchaseOrder.objects.filter(vendor=user.vendor_profile)
+                if vendor_name:
+                    purchase_orders = purchase_orders.filter(vendor__user__name__icontains=vendor_name)
+            else:
+                return Response(
+                    {
+                        'responseCode': status.HTTP_400_BAD_REQUEST,
+                        'responseMessage': 'User does not have a buyer or vendor profile.',
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if not purchase_orders.exists():
+                if vendor_name:
+                    return Response(
+                        {
+                            'responseCode': status.HTTP_200_OK,
+                            'responseMessage': f'No purchase order from the vendor {vendor_name}.',
+                            'responseData': [],
+                        },
+                        status=status.HTTP_200_OK
+                    )
+                else:
+                    return Response(
+                        {
+                            'responseCode': status.HTTP_200_OK,
+                            'responseMessage': 'No purchase order till now.',
+                            'responseData': [],
+                        },
+                        status=status.HTTP_200_OK
+                    )
+
+            # Paginate the purchase orders
+            paginator = CustomPagination()
+            paginated_purchase_orders = paginator.paginate_queryset(purchase_orders, request)
+            if not paginated_purchase_orders:
+                return Response(
+                    {
+                        'responseCode': status.HTTP_404_NOT_FOUND,
+                        'responseMessage': 'Page not found.',
+                        'responseData': [],
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            serializer = PurchaseOrderSerializer(paginated_purchase_orders, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
         except Exception as e:
             return Response(
                 {
@@ -1273,6 +1337,7 @@ class PurchaseOrderListView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
 
 class PurchaseOrderDetailView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1286,7 +1351,31 @@ class PurchaseOrderDetailView(APIView):
     )
     def get(self, request, po_number):
         try:
-            purchase_order = get_object_or_404(PurchaseOrder, po_number=po_number)
+            user = request.user
+
+            # Ensure the user is a buyer
+            if not hasattr(user, 'buyer_profile'):
+                return Response(
+                    {
+                        'responseCode': status.HTTP_404_NOT_FOUND,
+                        'responseMessage': 'Purchase Order not found.',
+                        'responseData': {},
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Filter purchase orders by po_number and the logged-in buyer
+            purchase_order = PurchaseOrder.objects.filter(po_number=po_number, buyer=user.buyer_profile).first()
+            if not purchase_order:
+                return Response(
+                    {
+                        'responseCode': status.HTTP_404_NOT_FOUND,
+                        'responseMessage': f'No purchase order found with PO number {po_number}.',
+                        'responseData': [],
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
             serializer = PurchaseOrderSerializer(purchase_order)
             return Response(
                 {
@@ -1316,12 +1405,26 @@ class PurchaseOrderUpdateView(APIView):
             200: openapi.Response(description='OK', schema=PurchaseOrderSerializer),
             400: openapi.Response(description='Bad Request', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
             404: openapi.Response(description='Not Found', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            500: openapi.Response(description='Internal Server Error', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
         }
     )
     def put(self, request, po_number):
         try:
-            purchase_order = get_object_or_404(PurchaseOrder, po_number=po_number)
-            serializer = PurchaseOrderSerializer(purchase_order, data=request.data, partial=True)
+            # Ensure the user is a buyer
+            if not hasattr(request.user, 'buyer_profile'):
+                return Response(
+                    {
+                        'responseCode': status.HTTP_404_NOT_FOUND,
+                        'responseMessage': 'Purchase Order not found.',
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Retrieve the purchase order instance for the logged-in buyer
+            purchase_order = get_object_or_404(PurchaseOrder, po_number=po_number, buyer=request.user.buyer_profile)
+            
+            # Update the purchase order instance with request data
+            serializer = PurchaseOrderSerializer(purchase_order, data=request.data, partial=True, context={'request': request})
             if serializer.is_valid():
                 serializer.save()
                 return Response(
@@ -1332,22 +1435,43 @@ class PurchaseOrderUpdateView(APIView):
                     },
                     status=status.HTTP_200_OK
                 )
+            else:
+                return Response(
+                    {
+                        'responseCode': status.HTTP_400_BAD_REQUEST,
+                        'responseMessage': serializer.errors,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        except Http404:
+            return Response(
+                {
+                    'responseCode': status.HTTP_404_NOT_FOUND,
+                    'responseMessage': 'Purchase Order not found.',
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        except ObjectDoesNotExist as e:
             return Response(
                 {
                     'responseCode': status.HTTP_400_BAD_REQUEST,
-                    'responseMessage': serializer.errors,
+                    'responseMessage': str(e),
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
+
         except Exception as e:
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again later.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 
 class PurchaseOrderDeleteView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1355,26 +1479,50 @@ class PurchaseOrderDeleteView(APIView):
     @swagger_auto_schema(
         manual_parameters=[authorization_param],
         responses={
-            204: openapi.Response(description='No Content'),
+            200: openapi.Response(description='OK'),
             404: openapi.Response(description='Not Found', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
         }
     )
     def delete(self, request, po_number):
         try:
-            purchase_order = get_object_or_404(PurchaseOrder, po_number=po_number)
+            # Ensure the user is a buyer
+            if not hasattr(request.user, 'buyer_profile'):
+                return Response(
+                    {
+                        'responseCode': status.HTTP_404_NOT_FOUND,
+                        'responseMessage': 'Purchase Order not found.',
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Retrieve the purchase order instance for the logged-in user (buyer)
+            purchase_order = get_object_or_404(PurchaseOrder, po_number=po_number, buyer=request.user.buyer_profile)
+            
+            # Delete the purchase order
             purchase_order.delete()
+
             return Response(
                 {
-                    'responseCode': status.HTTP_204_NO_CONTENT,
+                    'responseCode': status.HTTP_200_OK,
                     'responseMessage': 'Purchase Order deleted successfully.',
                 },
-                status=status.HTTP_204_NO_CONTENT
+                status=status.HTTP_200_OK
             )
+
+        except Http404:
+            return Response(
+                {
+                    'responseCode': status.HTTP_404_NOT_FOUND,
+                    'responseMessage': 'Purchase Order not found.',
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
         except Exception as e:
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again later.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
