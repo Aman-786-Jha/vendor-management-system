@@ -6,6 +6,7 @@ from .views import (
     LoginView, VendorPerformanceView, AcknowledgePurchaseOrderView,IssuePurchaseOrderView,CompletePurchaseOrderView,CancelPurchaseOrderView,
 )
 
+
 urlpatterns = [
     #--------------------Vendors--------------------------------#
     path('vendors-create/', VendorCreateView.as_view(), name='vendor-create'),
