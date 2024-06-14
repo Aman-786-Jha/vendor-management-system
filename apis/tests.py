@@ -300,3 +300,150 @@ class VendorDeleteViewTests(APITestCase):
         response = self.client.delete(self.delete_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(response.data['responseMessage'], 'Authentication credentials were not provided.')
+
+
+
+class BuyerCreateViewTests(APITestCase):
+
+    def setUp(self):
+        self.valid_payload = {
+            'user_type': 'buyer',
+            'name': 'Test Buyer',
+            'email': 'testbuyer@example.com',
+            'password': 'securepassword123',
+            'confirm_password': 'securepassword123',
+            'address': '123 Buyer Street',
+            'contact_details': '1234567890'
+        }
+
+        self.invalid_payload_email_exists = {
+            'user_type': 'buyer',
+            'name': 'Test Buyer',
+            'email': 'existingemail@example.com',
+            'password': 'securepassword123',
+            'confirm_password': 'securepassword123',
+            'address': '123 Buyer Street',
+            'contact_details': '1234567890'
+        }
+        User.objects.create_user(
+            user_type='buyer',
+            name='Existing Buyer',
+            email='existingemail@example.com',
+            password='securepassword123',
+            address='123 Buyer Street',
+            contact_details='1234567890'
+        )
+
+    def test_create_buyer_success(self):
+        response = self.client.post(reverse('buyer-create'), data=self.valid_payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['responseMessage'], 'Buyer created successfully.')
+        self.assertTrue(User.objects.filter(email=self.valid_payload['email']).exists())
+
+    def test_create_buyer_email_exists(self):
+        response = self.client.post(reverse('buyer-create'), data=self.invalid_payload_email_exists)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['responseMessage'], {'non_field_errors': ['This email has already been registered.']})
+
+    def test_create_buyer_password_mismatch(self):
+        invalid_payload_password_mismatch = self.valid_payload.copy()
+        invalid_payload_password_mismatch['confirm_password'] = 'differentpassword123'
+        response = self.client.post(reverse('buyer-create'), data=invalid_payload_password_mismatch)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['responseMessage'], {'non_field_errors': ['Password does not matches.']})
+
+    def test_create_buyer_missing_fields(self):
+        invalid_payload_missing_fields = self.valid_payload.copy()
+        del invalid_payload_missing_fields['name']
+        response = self.client.post(reverse('buyer-create'), data=invalid_payload_missing_fields)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('responseMessage', response.data)
+        self.assertIn('name', response.data['responseMessage'])
+        self.assertEqual(response.data['responseMessage']['name'][0], 'Name is required.')
+
+    def test_create_buyer_weak_password(self):
+        invalid_payload_weak_password = self.valid_payload.copy()
+        invalid_payload_weak_password['password'] = 'short'
+        invalid_payload_weak_password['confirm_password'] = 'short'
+        response = self.client.post(reverse('buyer-create'), data=invalid_payload_weak_password)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('responseMessage', response.data)
+        self.assertIn('password', response.data['responseMessage'])
+        self.assertEqual(response.data['responseMessage']['password'][0], 'Password must be at least 8 characters long.')
+
+    def test_create_buyer_blank_fields(self):
+        invalid_payload_blank_fields = self.valid_payload.copy()
+        invalid_payload_blank_fields['name'] = ''
+        invalid_payload_blank_fields['email'] = ''
+        invalid_payload_blank_fields['password'] = ''
+        invalid_payload_blank_fields['confirm_password'] = ''
+        response = self.client.post(reverse('buyer-create'), data=invalid_payload_blank_fields)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('responseMessage', response.data)
+        self.assertIn('name', response.data['responseMessage'])
+        self.assertEqual(response.data['responseMessage']['name'][0], 'Name cannot be blank')
+        self.assertIn('email', response.data['responseMessage'])
+        self.assertEqual(response.data['responseMessage']['email'][0], 'Email cannot be blank')
+        self.assertIn('password', response.data['responseMessage'])
+        self.assertEqual(response.data['responseMessage']['password'][0], 'Password is required.')
+        self.assertIn('confirm_password', response.data['responseMessage'])
+        self.assertEqual(response.data['responseMessage']['confirm_password'][0], 'Confirm Password is required.')
+
+
+class BuyerListViewTests(APITestCase):
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            user_type='buyer',
+            name='Test Buyer',
+            email='testbuyer@example.com',
+            password='securepassword123',
+            address='123 Buyer Street',
+            contact_details='1234567890'
+        )
+        self.buyer = Buyer.objects.create(user=self.user, buyer_code='B_001_ABCD')
+
+        self.client.force_authenticate(user=self.user)
+
+    def test_list_buyers_success(self):
+        response = self.client.get(reverse('buyer-list'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['responseCode'], status.HTTP_200_OK)
+        self.assertEqual(response.data['responseMessage'], 'Buyers retrieved successfully.')
+        self.assertEqual(len(response.data['responseData']), 1)
+
+    def test_list_buyers_filter_by_name(self):
+        response = self.client.get(reverse('buyer-list'), {'name': 'Test'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['responseCode'], status.HTTP_200_OK)
+        self.assertEqual(response.data['responseMessage'], 'Buyers retrieved successfully.')
+        self.assertEqual(len(response.data['responseData']), 1)
+
+    def test_list_buyers_filter_by_email(self):
+        response = self.client.get(reverse('buyer-list'), {'email': 'testbuyer@example.com'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['responseCode'], status.HTTP_200_OK)
+        self.assertEqual(response.data['responseMessage'], 'Buyers retrieved successfully.')
+        self.assertEqual(len(response.data['responseData']), 1)
+
+    def test_list_buyers_no_data_found(self):
+        response = self.client.get(reverse('buyer-list'), {'name': 'Nonexistent'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['responseCode'], status.HTTP_200_OK)
+        self.assertEqual(response.data['responseMessage'], 'No data found')
+        self.assertEqual(len(response.data['responseData']), 0)
+
+    def test_list_buyers_unauthorized(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get(reverse('buyer-list'))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data['responseCode'], status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data['responseMessage'], 'Authentication credentials were not provided.')
+
+    def test_list_buyers_internal_server_error(self):
+        with self.assertRaises(Exception):
+            response = self.client.get(reverse('buyer-list'), {'cause_error': 'true'})
+            self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+            self.assertEqual(response.data['responseCode'], status.HTTP_500_INTERNAL_SERVER_ERROR)
+            self.assertEqual(response.data['responseMessage'], 'Something went wrong! Please try again.')
