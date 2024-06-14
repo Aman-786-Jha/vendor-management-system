@@ -1,7 +1,8 @@
 # serializers.py
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from vendor_models.models import Vendor, VendorManagementUser
+from vendor_models.models import *
+from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth import get_user_model
 User = get_user_model()
 
@@ -137,10 +138,6 @@ class VendorManagementUserSerializer(serializers.ModelSerializer):
         return instance
 
 
-
-from rest_framework import serializers
-from vendor_models.models import Buyer
-
 class BuyerSerializer(serializers.ModelSerializer):
     user = VendorManagementUserSerializer()
 
@@ -191,10 +188,6 @@ class VendorManagementUserUpdateSerializer(serializers.ModelSerializer):
 
 
 
-
-from rest_framework import serializers
-from vendor_models.models import Vendor
-
 class VendorSerializer(serializers.ModelSerializer):
     user = VendorManagementUserUpdateSerializer()
 
@@ -211,7 +204,7 @@ class VendorSerializer(serializers.ModelSerializer):
         instance.average_response_time = validated_data.get('average_response_time', instance.average_response_time)
         instance.fulfillment_rate = validated_data.get('fulfillment_rate', instance.fulfillment_rate)
         
-        # Handle nested serializer (VendorManagementUserUpdateSerializer)
+        
         if user_data:
             user_instance = instance.user
             user_serializer = VendorManagementUserUpdateSerializer(user_instance, data=user_data, partial=True)
@@ -219,16 +212,10 @@ class VendorSerializer(serializers.ModelSerializer):
                 user_serializer.save()
             else:
                 raise serializers.ValidationError(user_serializer.errors)
-        
-        # Save updated instance
         instance.save()
         return instance
 
 
-
-from rest_framework import serializers
-from vendor_models.models import PurchaseOrder, Vendor, Buyer, Items
-from django.core.exceptions import ObjectDoesNotExist
 
 class PurchaseOrderSerializer(serializers.ModelSerializer):
     vendor_code = serializers.CharField(write_only=True, required=True)
@@ -287,15 +274,19 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
 
 
 
+
+
 class VendorPerformanceSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Vendor
+        model = HistoricalPerformanceVendor
         fields = [
-            'on_time_delivery_date',
+            'on_time_delivery_rate',
             'quality_rating_avg',
             'average_response_time',
-            'fulfillment_rate'
+            'fulfillment_rate',
+            'date',
         ]
+
 
 
 

@@ -32,8 +32,9 @@ urlpatterns = [
     path('purchase-orders/<str:po_number>/delete/', PurchaseOrderDeleteView.as_view(), name='purchase-order-delete'),
 
 
-    path('vendors/<int:vendor_id>/performance/', VendorPerformanceView.as_view(), name='vendor_performance'),
-    path('purchase_orders/<str:po_number>/acknowledge/', AcknowledgePurchaseOrderView.as_view(), name='purchase_order_acknowledge'),
+    #-------------------------Vendor Performance metrics endpoint-------------------------------------------#
+    path('api/vendors/<int:vendor_id>/performance/', VendorPerformanceView.as_view(), name='vendor-performance'),
+    path('api/purchase_orders/<int:po_id>/acknowledge/', AcknowledgePurchaseOrderView.as_view(), name='acknowledge-purchase-order'),
 
 
     #-----------------------Login-----------------------------------------#

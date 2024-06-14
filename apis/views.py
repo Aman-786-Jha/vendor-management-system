@@ -101,6 +101,9 @@ vendor_code_param = openapi.Parameter(
     required=True
 )
 
+
+#############################  LOGIN   ###################################
+
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -137,14 +140,18 @@ class LoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            print(f'Login error--------> {e}')
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+################################  VENDOR VIEW  ############################################
+
 
 class VendorCreateView(APIView):
     @swagger_auto_schema(
@@ -179,10 +186,11 @@ class VendorCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            print('vendor create error-------->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -310,6 +318,7 @@ class VendorListView(APIView):
                 }
             )
         except Exception as e:
+            print('vendor list error------>', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -406,6 +415,7 @@ class VendorDetailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            print(f'vendor detail error----------->{e}')
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -596,6 +606,7 @@ class  VendorUpdateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except ValidationError as ve:
+            print('validation error------>', ve.detail)
             return Response(
                 {
                     'responseCode': status.HTTP_400_BAD_REQUEST,
@@ -605,6 +616,7 @@ class  VendorUpdateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            print('vendor update error----->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -693,6 +705,7 @@ class VendorDeleteView(APIView):
                 status=status.HTTP_200_OK
             )
         except ValidationError as ve:
+            print('validation error-------->', ve.detail)
             return Response(
                 {
                     'responseCode': status.HTTP_400_BAD_REQUEST,
@@ -702,6 +715,7 @@ class VendorDeleteView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            print('vendor delete-------->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -710,6 +724,9 @@ class VendorDeleteView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
+
+###############################  BUYER VIEW  #######################################################
 
 # Buyer Views
 class BuyerCreateView(APIView):
@@ -878,6 +895,7 @@ class BuyerListView(APIView):
                 }
             )
         except Exception as e:
+            print('buyer list error---------->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -970,6 +988,7 @@ class BuyerDetailView(APIView):
                 status=status.HTTP_200_OK
             )
         except ValidationError as ve:
+            print('validation error---------->', ve.detail)
             return Response(
                 {
                     'responseCode': status.HTTP_400_BAD_REQUEST,
@@ -979,6 +998,7 @@ class BuyerDetailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            print('buyer detail error----------->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1077,6 +1097,7 @@ class BuyerUpdateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except ValidationError as ve:
+            print('validation error--------->', ve.detail)
             return Response(
                 {
                     'responseCode': status.HTTP_400_BAD_REQUEST,
@@ -1086,6 +1107,7 @@ class BuyerUpdateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            print('buyer update error--------->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1185,7 +1207,7 @@ class BuyerDeleteView(APIView):
                 status=status.HTTP_200_OK
             )
         except ValidationError as ve:
-            print('Input detail--------->', ve.detail)
+            print('validation error--------->', ve.detail)
             return Response(
                 {
                     'responseCode': status.HTTP_400_BAD_REQUEST,
@@ -1195,6 +1217,7 @@ class BuyerDeleteView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            print(f'buyer deleted error--------->{e}')
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1203,6 +1226,9 @@ class BuyerDeleteView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
+
+####################################   PURCHASE ORDER    ##############################################
 
 # Purchase Order Views
 class PurchaseOrderCreateView(APIView):
@@ -1245,10 +1271,11 @@ class PurchaseOrderCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            print('purchase create error--------->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -1329,10 +1356,11 @@ class PurchaseOrderListView(APIView):
             return paginator.get_paginated_response(serializer.data)
 
         except Exception as e:
+            print('purchase order list error---------->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -1386,10 +1414,11 @@ class PurchaseOrderDetailView(APIView):
                 status=status.HTTP_200_OK
             )
         except Exception as e:
+            print('purchase order detail error---------->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -1454,6 +1483,7 @@ class PurchaseOrderUpdateView(APIView):
             )
 
         except ObjectDoesNotExist as e:
+            print('object not found---------->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_400_BAD_REQUEST,
@@ -1463,6 +1493,7 @@ class PurchaseOrderUpdateView(APIView):
             )
 
         except Exception as e:
+            print('purchase order update error------------>', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1519,6 +1550,7 @@ class PurchaseOrderDeleteView(APIView):
             )
 
         except Exception as e:
+            print('purchase order delete error------------->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1527,13 +1559,17 @@ class PurchaseOrderDeleteView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
 
+#################################     Performance Metric       ####################################################
 
+from .performance_calculations import *
 
 class VendorPerformanceView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
+        manual_parameters=[authorization_param],
         responses={
             200: openapi.Response(description='OK', schema=VendorPerformanceSerializer),
             404: openapi.Response(description='Not Found', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
@@ -1543,7 +1579,8 @@ class VendorPerformanceView(APIView):
     def get(self, request, vendor_id):
         try:
             vendor = get_object_or_404(Vendor, id=vendor_id)
-            serializer = VendorPerformanceSerializer(vendor)
+            performance = vendor.historical_performance.latest('date')
+            serializer = VendorPerformanceSerializer(performance)
             return Response(
                 {
                     'responseCode': status.HTTP_200_OK,
@@ -1560,7 +1597,16 @@ class VendorPerformanceView(APIView):
                 },
                 status=status.HTTP_404_NOT_FOUND
             )
+        except HistoricalPerformanceVendor.DoesNotExist:
+            return Response(
+                {
+                    'responseCode': status.HTTP_404_NOT_FOUND,
+                    'responseMessage': 'No performance metrics found for this vendor.',
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
+            print('vendor metric error-------->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1569,46 +1615,46 @@ class VendorPerformanceView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-
-
-
 
 class AcknowledgePurchaseOrderView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
-        request_body=AcknowledgePurchaseOrderSerializer,
+        manual_parameters=[authorization_param],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={}
+        ),
         responses={
             200: openapi.Response(description='OK'),
-            404: openapi.Response(description='Not Found', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
-            500: openapi.Response(description='Internal Server Error', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            404: openapi.Response(description='Not Found'),
+            500: openapi.Response(description='Internal Server Error'),
         }
     )
-    def post(self, request, po_number):
+    def post(self, request, po_id):
         try:
-            purchase_order = get_object_or_404(PurchaseOrder, po_number=po_number, vendor=request.user.vendor_profile)
+            purchase_order = get_object_or_404(PurchaseOrder, id=po_id)
             purchase_order.acknowledgment_date = timezone.now()
             purchase_order.status = 'acknowledged'
             purchase_order.save()
-
+            update_vendor_metrics(purchase_order.vendor)
             return Response(
                 {
                     'responseCode': status.HTTP_200_OK,
-                    'responseMessage': 'Purchase Order acknowledged successfully.',
+                    'responseMessage': 'Purchase order acknowledged successfully.',
                 },
                 status=status.HTTP_200_OK
             )
-
         except PurchaseOrder.DoesNotExist:
             return Response(
                 {
                     'responseCode': status.HTTP_404_NOT_FOUND,
-                    'responseMessage': 'Purchase Order not found.',
+                    'responseMessage': 'Purchase order not found.',
                 },
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
+            print('purchase order acknowledge error----------->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1617,5 +1663,6 @@ class AcknowledgePurchaseOrderView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 
 
