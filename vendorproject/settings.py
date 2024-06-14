@@ -178,7 +178,4 @@ SIMPLE_JWT = {
 }
 
 
-
-
-
 AUTH_USER_MODEL = 'vendor_models.VendorManagementUser'

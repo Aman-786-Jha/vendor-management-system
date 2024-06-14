@@ -16,10 +16,6 @@ Including another URLconf
 """
 
 
-# urlpatterns = [
-#     path('admin/', admin.site.urls),
-# ]
-
 from django.contrib import admin
 from django.urls import path, include 
 from rest_framework import permissions
@@ -39,9 +35,9 @@ schema_view = get_schema_view(
       title="Vendor Management Apis",
       default_version='v1',
       description="Vendor, Buyer, Purchase Order, Historical Performance",
-      terms_of_service="https://www.google.com/policies/terms/",
-      contact=openapi.Contact(email="contact@snippets.local"),
-      license=openapi.License(name="BSD License"),
+      terms_of_service="https://www.vendorexample.com/policies/terms/",
+      contact=openapi.Contact(email="vendor@example.com"),
+      license=openapi.License(name="Vendor License"),
    ),
    public=True,
    permission_classes=(permissions.AllowAny,),
