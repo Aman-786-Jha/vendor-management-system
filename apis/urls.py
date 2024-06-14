@@ -3,7 +3,7 @@ from .views import (
     VendorCreateView, VendorListView, VendorDetailView, VendorUpdateView, VendorDeleteView,
     BuyerCreateView, BuyerListView, BuyerDetailView, BuyerUpdateView, BuyerDeleteView,
     PurchaseOrderCreateView, PurchaseOrderListView, PurchaseOrderDetailView, PurchaseOrderUpdateView, PurchaseOrderDeleteView,
-    LoginView, VendorPerformanceView, AcknowledgePurchaseOrderView
+    LoginView, VendorPerformanceView, AcknowledgePurchaseOrderView,IssuePurchaseOrderView,CompletePurchaseOrderView,CancelPurchaseOrderView,
 )
 
 urlpatterns = [
@@ -33,9 +33,14 @@ urlpatterns = [
 
 
     #-------------------------Vendor Performance metrics endpoint-------------------------------------------#
-    path('api/vendors/<int:vendor_id>/performance/', VendorPerformanceView.as_view(), name='vendor-performance'),
-    path('api/purchase_orders/<int:po_id>/acknowledge/', AcknowledgePurchaseOrderView.as_view(), name='acknowledge-purchase-order'),
+    path('vendors/<int:vendor_id>/performance', VendorPerformanceView.as_view(), name='vendor-performance'),
 
+
+    #--------------------------Purchase order status endpoint-------------------------------------------------------------#
+    path('purchase_orders_status/<int:po_id>/acknowledge', AcknowledgePurchaseOrderView.as_view(), name='acknowledge-purchase-order'),
+    path('purchase_orders_status/<int:po_id>/issue', IssuePurchaseOrderView.as_view(), name='issue-purchase-order'),
+    path('purchase_orders_status/<int:po_id>/complete', CompletePurchaseOrderView.as_view(), name='complete-purchase-order'),
+    path('purchase_orders_status/<int:po_id>/cancel', CancelPurchaseOrderView.as_view(), name='cancel-purchase-order'),
 
     #-----------------------Login-----------------------------------------#
     path('login/', LoginView.as_view(), name='login'),

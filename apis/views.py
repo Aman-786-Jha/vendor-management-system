@@ -1606,15 +1606,18 @@ class VendorPerformanceView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
-            print('vendor metric error-------->', e)
+            print('performance metrics error------------>', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
+
+#################################  PURCHASE ORDER STATUS  ####################################
 
 class AcknowledgePurchaseOrderView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1654,11 +1657,150 @@ class AcknowledgePurchaseOrderView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
-            print('purchase order acknowledge error----------->', e)
             return Response(
                 {
                     'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    'responseMessage': 'Internal Server Error',
+                    'responseMessage': 'Something went wrong! Please try again.',
+                    'responseData': {'error': str(e)},
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class IssuePurchaseOrderView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        manual_parameters=[authorization_param],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={}
+        ),
+        responses={
+            200: openapi.Response(description='OK'),
+            404: openapi.Response(description='Not Found'),
+            500: openapi.Response(description='Internal Server Error'),
+        }
+    )
+    def post(self, request, po_id):
+        try:
+            purchase_order = get_object_or_404(PurchaseOrder, id=po_id)
+            purchase_order.issue_date = timezone.now()
+            purchase_order.status = 'issued'
+            purchase_order.save()
+            update_vendor_metrics(purchase_order.vendor)
+            return Response(
+                {
+                    'responseCode': status.HTTP_200_OK,
+                    'responseMessage': 'Purchase order issued successfully.',
+                },
+                status=status.HTTP_200_OK
+            )
+        except PurchaseOrder.DoesNotExist:
+            return Response(
+                {
+                    'responseCode': status.HTTP_404_NOT_FOUND,
+                    'responseMessage': 'Purchase order not found.',
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {
+                    'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    'responseMessage': 'Something went wrong! Please try again.',
+                    'responseData': {'error': str(e)},
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class CompletePurchaseOrderView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        manual_parameters=[authorization_param],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={}
+        ),
+        responses={
+            200: openapi.Response(description='OK'),
+            404: openapi.Response(description='Not Found'),
+            500: openapi.Response(description='Internal Server Error'),
+        }
+    )
+    def post(self, request, po_id):
+        try:
+            purchase_order = get_object_or_404(PurchaseOrder, id=po_id)
+            purchase_order.completion_date = timezone.now()
+            purchase_order.status = 'completed'
+            purchase_order.save()
+            update_vendor_metrics(purchase_order.vendor)
+            return Response(
+                {
+                    'responseCode': status.HTTP_200_OK,
+                    'responseMessage': 'Purchase order completed successfully.',
+                },
+                status=status.HTTP_200_OK
+            )
+        except PurchaseOrder.DoesNotExist:
+            return Response(
+                {
+                    'responseCode': status.HTTP_404_NOT_FOUND,
+                    'responseMessage': 'Purchase order not found.',
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {
+                    'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    'responseMessage': 'Something went wrong! Please try again.',
+                    'responseData': {'error': str(e)},
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class CancelPurchaseOrderView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        manual_parameters=[authorization_param],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={}
+        ),
+        responses={
+            200: openapi.Response(description='OK'),
+            404: openapi.Response(description='Not Found'),
+            500: openapi.Response(description='Internal Server Error'),
+        }
+    )
+    def post(self, request, po_id):
+        try:
+            purchase_order = get_object_or_404(PurchaseOrder, id=po_id)
+            purchase_order.status = 'cancelled'
+            purchase_order.save()
+            update_vendor_metrics(purchase_order.vendor)
+            return Response(
+                {
+                    'responseCode': status.HTTP_200_OK,
+                    'responseMessage': 'Purchase order cancelled successfully.',
+                },
+                status=status.HTTP_200_OK
+            )
+        except PurchaseOrder.DoesNotExist:
+            return Response(
+                {
+                    'responseCode': status.HTTP_404_NOT_FOUND,
+                    'responseMessage': 'Purchase order not found.',
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {
+                    'responseCode': status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    'responseMessage': 'Something went wrong! Please try again.',
                     'responseData': {'error': str(e)},
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
